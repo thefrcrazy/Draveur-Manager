@@ -124,7 +124,7 @@ async fn run_status_update(pool: &DbPool, sys: &mut System, pm: &ProcessManager)
     let embed = serde_json::json!({
         "author": {
             "name": "Kweebec Manager",
-            "icon_url": "https://cdn.discordapp.com/emojis/1199040367842689154.webp"
+            "icon_url": "https://raw.githubusercontent.com/thefrcrazy/Kweebec-Manager/refs/heads/main/frontend/public/kweebec-manager-logo.png"
         },
         "title": "📊 État du Système",
         "color": 0x3A82F6,
