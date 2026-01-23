@@ -81,7 +81,7 @@ irm https://raw.githubusercontent.com/thefrcrazy/kweebec-manager/main/install/wi
 - [ ] Console WebSocket
 - [ ] Interface Dashboard
 - [ ] Support Hytale
-- [ ] Docker Compose
+- [x] Docker Compose
 - [ ] Support Minecraft (v1.1)
 - [ ] Support Palworld
 - [ ] Support Valheim
