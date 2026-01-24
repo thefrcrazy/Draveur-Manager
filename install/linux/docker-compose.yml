@@ -18,9 +18,9 @@ services:
       - BACKUPS_DIR=/backups
       - RUST_LOG=info
     volumes:
-      - ./data:/data
-      - ./servers:/servers
-      - ./backups:/backups
+      - ../../data:/data
+      - ../../servers:/servers
+      - ../../backups:/backups
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5500/api/v1/settings"]
       interval: 30s

@@ -36,13 +36,17 @@ RUN apt-get update && apt-get install -y \
     && wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | tee /etc/apt/keyrings/adoptium.asc \
     && echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb bookworm main" | tee /etc/apt/sources.list.d/adoptium.list \
     && apt-get update \
-    && apt-get install -y temurin-25-jdk \
+    && apt-get install -y temurin-25-jdk gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user with explicit UID 1000 to match host user
 RUN useradd -u 1000 -m -d /home/kweebec -s /bin/bash kweebec
 
 WORKDIR /app
+
+# Copy entrypoint script
+COPY install/linux/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 # Copy backend binary
 COPY --from=backend-builder /app/backend/target/release/kweebec ./kweebec
@@ -51,10 +55,7 @@ COPY --from=backend-builder /app/backend/target/release/kweebec ./kweebec
 COPY --from=frontend-builder /app/frontend/dist ./static
 
 # Create data directories
-RUN mkdir -p /data /servers /backups && \
-    chown -R kweebec:kweebec /app /data /servers /backups
-
-USER kweebec
+RUN mkdir -p /data /servers /backups
 
 # Environment
 ENV HOST=0.0.0.0
@@ -66,4 +67,5 @@ ENV RUST_LOG=info
 
 EXPOSE 5500
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["./kweebec"]
