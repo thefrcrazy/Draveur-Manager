@@ -16,7 +16,7 @@ impl Settings {
             port: std::env::var("PORT")
                 .ok()
                 .and_then(|p| p.parse().ok())
-                .unwrap_or(8443),
+                .unwrap_or(5500),
             database_url: std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "sqlite:data/kweebec.db?mode=rwc".into()),
             jwt_secret: std::env::var("JWT_SECRET")

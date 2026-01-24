@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
@@ -6,6 +6,7 @@ use tokio::sync::{broadcast, RwLock};
 use std::fs;
 use tracing::{info, warn};
 use serde_json::Value;
+use regex::Regex;
 
 use crate::error::AppError;
 
@@ -17,6 +18,7 @@ pub struct ProcessManager {
 struct ServerProcess {
     child: Child,
     log_tx: broadcast::Sender<String>,
+    players: Arc<std::sync::RwLock<HashSet<String>>>,
 }
 
 impl ProcessManager {
@@ -117,13 +119,41 @@ impl ProcessManager {
         // Create log broadcaster
         let (log_tx, _) = broadcast::channel::<String>(1000);
 
+        // Create players tracker
+        let players = Arc::new(std::sync::RwLock::new(HashSet::new()));
+
         // Spawn task to read stdout
         if let Some(stdout) = child.stdout.take() {
             let tx = log_tx.clone();
+            let players_clone = players.clone();
             let server_id_clone = server_id.to_string();
             std::thread::spawn(move || {
                 let reader = BufReader::new(stdout);
+                // Regex for detecting player join/leave
+                // Join example: [Universe|P] Adding player 'Name (UUID)
+                // Leave example: [Universe|P] Removing player 'Name' (UUID)
+                // Note: Join might be missing the closing quote for the name based on user logs
+                let join_re = Regex::new(r"\[Universe\|P\] Adding player '([^' ]+)").unwrap();
+                let leave_re = Regex::new(r"\[Universe\|P\] Removing player '([^']+)'").unwrap();
+
                 for line in reader.lines().map_while(Result::ok) {
+                    // Try to match player events
+                    if let Some(caps) = join_re.captures(&line) {
+                        if let Some(name) = caps.get(1) {
+                            let player_name = name.as_str().to_string();
+                            if let Ok(mut p) = players_clone.write() {
+                                p.insert(player_name);
+                            }
+                        }
+                    } else if let Some(caps) = leave_re.captures(&line) {
+                        if let Some(name) = caps.get(1) {
+                            let player_name = name.as_str().to_string();
+                            if let Ok(mut p) = players_clone.write() {
+                                p.remove(&player_name);
+                            }
+                        }
+                    }
+
                     let _ = tx.send(line);
                 }
                 info!("Server {} stdout stream ended", server_id_clone);
@@ -145,7 +175,7 @@ impl ProcessManager {
 
         processes.insert(
             server_id.to_string(),
-            ServerProcess { child, log_tx },
+            ServerProcess { child, log_tx, players },
         );
 
         Ok(())
@@ -244,6 +274,20 @@ impl ProcessManager {
     }
 
 
+
+
+
+    pub async fn get_online_players(&self, server_id: &str) -> Option<Vec<String>> {
+        if let Ok(processes) = self.processes.try_read() {
+            if let Some(proc) = processes.get(server_id) {
+                if let Ok(players) = proc.players.read() {
+                    return Some(players.iter().cloned().collect());
+                }
+            }
+        }
+        None
+    }
+}
 
 impl Default for ProcessManager {
     fn default() -> Self {

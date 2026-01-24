@@ -15,6 +15,8 @@ export interface Server {
     auto_start: boolean;
     created_at: string;
     updated_at: string;
+    players?: string[]; // List of player names
+    max_players?: number;
 }
 
 interface UseServersReturn {

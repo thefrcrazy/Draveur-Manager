@@ -53,6 +53,7 @@ flate2 = "1.0"
 sysinfo = "0.33"
 lazy_static = "1.5"
 walkdir = "2.5.0"
+regex = "1.12.2"
 
 [dev-dependencies]
 actix-rt = "2"

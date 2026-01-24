@@ -44,6 +44,8 @@ pub struct ServerResponse {
     pub created_at: String,
     pub updated_at: String,
     pub dir_exists: bool,
+    pub players: Option<Vec<String>>,
+    pub max_players: Option<u32>,
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -76,38 +78,53 @@ async fn list_servers(
     .fetch_all(pool.get_ref())
     .await?;
 
-    let responses: Vec<ServerResponse> = servers
-        .into_iter()
-        .map(|s| {
-            // Check if the working directory exists
-            let dir_exists = Path::new(&s.working_dir).exists();
-            
-            let status = if !dir_exists {
-                "missing"
-            } else if pm.is_running(&s.id) {
-                "running"
-            } else {
-                "stopped"
-            };
-            ServerResponse {
-                id: s.id,
-                name: s.name,
-                game_type: s.game_type,
-                status: status.to_string(),
-                executable_path: s.executable_path,
-                working_dir: s.working_dir,
-                java_path: s.java_path,
-                min_memory: s.min_memory,
-                max_memory: s.max_memory,
-                extra_args: s.extra_args,
-                config: s.config.and_then(|c| serde_json::from_str(&c).ok()),
-                auto_start: s.auto_start != 0,
-                created_at: s.created_at,
-                updated_at: s.updated_at,
-                dir_exists,
-            }
-        })
-        .collect();
+    let mut responses = Vec::new();
+    for s in servers {
+        // Check if the working directory exists
+        let dir_exists = Path::new(&s.working_dir).exists();
+        let is_running = pm.is_running(&s.id);
+        
+        let status = if !dir_exists {
+            "missing"
+        } else if is_running {
+            "running"
+        } else {
+            "stopped"
+        };
+
+        let players = if is_running {
+            pm.get_online_players(&s.id).await
+        } else {
+            None
+        };
+
+        // Parse max_players from config
+        let config_json = s.config.as_ref().and_then(|c| serde_json::from_str::<serde_json::Value>(c).ok());
+        let max_players = config_json.as_ref()
+            .and_then(|c| c.get("MaxPlayers"))
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32);
+
+        responses.push(ServerResponse {
+            id: s.id,
+            name: s.name,
+            game_type: s.game_type,
+            status: status.to_string(),
+            executable_path: s.executable_path,
+            working_dir: s.working_dir,
+            java_path: s.java_path,
+            min_memory: s.min_memory,
+            max_memory: s.max_memory,
+            extra_args: s.extra_args,
+            config: config_json,
+            auto_start: s.auto_start != 0,
+            created_at: s.created_at,
+            updated_at: s.updated_at,
+            dir_exists,
+            players,
+            max_players,
+        });
+    }
 
     Ok(HttpResponse::Ok().json(responses))
 }
@@ -126,26 +143,14 @@ async fn create_server(
     //   {uuid}/server/           - Hytale server files (working directory)
     let server_base_path = Path::new(&body.working_dir).join(&id);
     let server_path = server_base_path.join("server");
-    // let manager_path = server_base_path.join("manager"); // Removed in favor of root
+    let backups_path = server_base_path.join("backups");
     
     // Create all directories (Hytale official structure)
+    // We only create the base structure, the server will generate the rest (.cache, logs, universe, etc.)
     let directories = [
         &server_base_path,
         &server_path,
-        &server_path.join(".cache"),
-        &server_path.join("mods"),
-        &server_path.join("logs"),
-        &server_path.join("universe"),
-        &server_path.join("universe/players"),
-        &server_path.join("universe/worlds"),
-        &server_path.join("universe/worlds/default"),
-    ];
-        &server_path.join("mods"),
-        &server_path.join("logs"),
-        &server_path.join("universe"),
-        &server_path.join("universe/players"),
-        &server_path.join("universe/worlds"),
-        &server_path.join("universe/worlds/default"),
+        &backups_path,
     ];
 
     for dir in directories {
@@ -162,10 +167,7 @@ async fn create_server(
     // Extract configuration from request body
     let config_value = body.config.as_ref();
     let server_name = &body.name;
-    let max_players: u32 = config_value
-        .and_then(|c| c.get("max_players"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(100) as u32;
+    // max_players et al are used for manager.json but we don't generate server config anymore
     let auth_mode = config_value
         .and_then(|c| c.get("auth_mode"))
         .and_then(|v| v.as_str())
@@ -179,54 +181,6 @@ async fn create_server(
         .and_then(|v| v.as_u64())
         .unwrap_or(5520) as u16;
 
-    // Generate and write config.json
-    let hytale_config = templates::generate_config_json(server_name, max_players, auth_mode);
-    let config_json_path = server_path.join("config.json");
-    let mut file = fs::File::create(&config_json_path).await.map_err(|e| {
-        AppError::Internal(format!("Failed to create config.json: {}", e))
-    })?;
-    file.write_all(serde_json::to_string_pretty(&hytale_config).unwrap().as_bytes())
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to write config.json: {}", e)))?;
-
-    // Generate and write permissions.json
-    let permissions = templates::generate_permissions_json();
-    let permissions_path = server_path.join("permissions.json");
-    let mut file = fs::File::create(&permissions_path).await.map_err(|e| {
-        AppError::Internal(format!("Failed to create permissions.json: {}", e))
-    })?;
-    file.write_all(serde_json::to_string_pretty(&permissions).unwrap().as_bytes())
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to write permissions.json: {}", e)))?;
-
-    // Generate and write bans.json
-    let bans = templates::generate_bans_json();
-    let bans_path = server_path.join("bans.json");
-    let mut file = fs::File::create(&bans_path).await.map_err(|e| {
-        AppError::Internal(format!("Failed to create bans.json: {}", e))
-    })?;
-    file.write_all(serde_json::to_string_pretty(&bans).unwrap().as_bytes())
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to write bans.json: {}", e)))?;
-
-    // Generate and write whitelist.json
-    let whitelist = templates::generate_whitelist_json();
-    let whitelist_path = server_path.join("whitelist.json");
-    let mut file = fs::File::create(&whitelist_path).await.map_err(|e| {
-        AppError::Internal(format!("Failed to create whitelist.json: {}", e))
-    })?;
-    file.write_all(serde_json::to_string_pretty(&whitelist).unwrap().as_bytes())
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to write whitelist.json: {}", e)))?;
-
-    // Generate and write universe/memories.json
-    let memories_path = server_path.join("universe/memories.json");
-    let mut file = fs::File::create(&memories_path).await.map_err(|e| {
-        AppError::Internal(format!("Failed to create memories.json: {}", e))
-    })?;
-    file.write_all(b"{\"memories\": []}")
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to write memories.json: {}", e)))?;
 
     // Generate and write manager/manager.json (unified config)
     let manager_config = templates::generate_manager_json(
@@ -248,37 +202,7 @@ async fn create_server(
         .await
         .map_err(|e| AppError::Internal(format!("Failed to write manager.json: {}", e)))?;
 
-    // Create placeholder files for development
-    // In production, these would be downloaded via hytale-downloader
-    
-    // HytaleServer.jar
-    let jar_path = server_path.join("HytaleServer.jar");
-    let mut file = fs::File::create(&jar_path).await.map_err(|e| {
-        AppError::Internal(format!("Failed to create HytaleServer.jar placeholder: {}", e))
-    })?;
-    file.write_all(b"# Placeholder - Download server via hytale-downloader\n")
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to write HytaleServer.jar: {}", e)))?;
-
-    // HytaleServer.aot (AOT cache for faster startup)
-    let aot_path = server_path.join("HytaleServer.aot");
-    let mut file = fs::File::create(&aot_path).await.map_err(|e| {
-        AppError::Internal(format!("Failed to create HytaleServer.aot placeholder: {}", e))
-    })?;
-    file.write_all(b"# Placeholder - Generated by Java on first run with -XX:AOTCache\n")
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to write HytaleServer.aot: {}", e)))?;
-
-    // Assets.zip (required game assets)
-    let assets_path = server_path.join("Assets.zip");
-    let mut file = fs::File::create(&assets_path).await.map_err(|e| {
-        AppError::Internal(format!("Failed to create Assets.zip placeholder: {}", e))
-    })?;
-    file.write_all(b"# Placeholder - Download assets via hytale-downloader\n")
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to write Assets.zip: {}", e)))?;
-
-    info!("Generated all configuration files for server {}", id);
+    info!("Generated manager configuration for server {}", id);
 
     let config_str = body.config.as_ref().map(|c| c.to_string());
 
@@ -328,13 +252,27 @@ async fn get_server(
     .await?
     .ok_or_else(|| AppError::NotFound("Server not found".into()))?;
 
-    let status = if pm.is_running(&server.id) {
+    let is_running = pm.is_running(&server.id);
+    let status = if is_running {
         "running"
     } else {
         "stopped"
     };
 
     let dir_exists = Path::new(&server.working_dir).exists();
+    
+    let players = if is_running {
+        pm.get_online_players(&server.id).await
+    } else {
+        None
+    };
+
+    // Parse max_players from config
+    let config_json = server.config.as_ref().and_then(|c| serde_json::from_str::<serde_json::Value>(c).ok());
+    let max_players = config_json.as_ref()
+        .and_then(|c| c.get("MaxPlayers"))
+        .and_then(|v| v.as_u64())
+        .map(|v| v as u32);
 
     Ok(HttpResponse::Ok().json(ServerResponse {
         id: server.id,
@@ -347,11 +285,13 @@ async fn get_server(
         min_memory: server.min_memory,
         max_memory: server.max_memory,
         extra_args: server.extra_args,
-        config: server.config.and_then(|c| serde_json::from_str(&c).ok()),
+        config: config_json,
         auto_start: server.auto_start != 0,
         created_at: server.created_at,
         updated_at: server.updated_at,
         dir_exists,
+        players,
+        max_players,
     }))
 }
 

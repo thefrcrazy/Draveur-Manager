@@ -51,12 +51,12 @@ USER kweebec
 
 # Environment
 ENV HOST=0.0.0.0
-ENV PORT=8443
+ENV PORT=5500
 ENV DATABASE_URL=sqlite:/data/kweebec.db?mode=rwc
 ENV SERVERS_DIR=/servers
 ENV BACKUPS_DIR=/backups
 ENV RUST_LOG=info
 
-EXPOSE 8443
+EXPOSE 5500
 
 CMD ["./kweebec"]

@@ -125,7 +125,7 @@ function Setup-Config {
     
     @"
 HOST=0.0.0.0
-PORT=8443
+PORT=5500
 DATABASE_URL=sqlite:$DataDir\data\kweebec.db?mode=rwc
 JWT_SECRET=$jwtSecret
 SERVERS_DIR=$DataDir\servers
@@ -154,7 +154,7 @@ function Create-WindowsService {
     
     nssm install $serviceName "$InstallDir\backend\target\release\kweebec.exe"
     nssm set $serviceName AppDirectory "$InstallDir\backend"
-    nssm set $serviceName AppEnvironmentExtra "HOST=0.0.0.0" "PORT=8443" "DATABASE_URL=sqlite:$DataDir\data\kweebec.db?mode=rwc"
+    nssm set $serviceName AppEnvironmentExtra "HOST=0.0.0.0" "PORT=5500" "DATABASE_URL=sqlite:$DataDir\data\kweebec.db?mode=rwc"
     nssm set $serviceName DisplayName "Kweebec Manager"
     nssm set $serviceName Description "Game Server Manager for Hytale"
     nssm set $serviceName Start SERVICE_AUTO_START
@@ -168,7 +168,7 @@ function Configure-Firewall {
     $ruleExists = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
     
     if (-not $ruleExists) {
-        New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -LocalPort 8443 -Protocol TCP -Action Allow
+        New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -LocalPort 5500 -Protocol TCP -Action Allow
     }
 }
 
@@ -181,7 +181,7 @@ function Show-Success {
     Write-ColorOutput Green "║           ✅ Installation terminée avec succès !          ║"
     Write-ColorOutput Green "╚═══════════════════════════════════════════════════════════╝"
     Write-Host ""
-    Write-Host "  📡 Interface web: http://${ip}:8443"
+    Write-Host "  📡 Interface web: http://${ip}:5500"
     Write-Host ""
     Write-ColorOutput Yellow "  Commandes utiles:"
     Write-Host "    Start-Service KweebecManager    # Démarrer"
@@ -190,7 +190,7 @@ function Show-Success {
     Write-Host ""
     Write-ColorOutput Magenta "  Premier démarrage:"
     Write-Host "    1. Démarrez le service: Start-Service KweebecManager"
-    Write-Host "    2. Accédez à http://${ip}:8443"
+    Write-Host "    2. Accédez à http://${ip}:5500"
     Write-Host "    3. Créez votre compte admin"
     Write-Host ""
 }

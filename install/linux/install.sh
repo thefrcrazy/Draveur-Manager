@@ -163,7 +163,7 @@ create_env_file() {
     
     cat > "$DATA_DIR/.env" << EOF
 HOST=0.0.0.0
-PORT=8443
+PORT=5500
 DATABASE_URL=sqlite:$DATA_DIR/data/kweebec.db?mode=rwc
 JWT_SECRET=$(openssl rand -base64 32)
 SERVERS_DIR=$DATA_DIR/servers
@@ -211,7 +211,7 @@ print_success() {
     echo "╚═══════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
     echo ""
-    echo -e "  ${BLUE}📡 Interface web:${NC} http://$IP:8443"
+    echo -e "  ${BLUE}📡 Interface web:${NC} http://$IP:5500"
     echo ""
     echo -e "  ${YELLOW}Commandes utiles:${NC}"
     echo "    sudo systemctl start kweebec    # Démarrer"
@@ -221,7 +221,7 @@ print_success() {
     echo ""
     echo -e "  ${PURPLE}Premier démarrage:${NC}"
     echo "    1. Démarrez le service: sudo systemctl start kweebec"
-    echo "    2. Accédez à http://$IP:8443"
+    echo "    2. Accédez à http://$IP:5500"
     echo "    3. Créez votre compte admin"
     echo ""
 }

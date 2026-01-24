@@ -72,6 +72,8 @@ interface Server {
     is_unloading_chunks?: boolean;
     is_objective_markers_enabled?: boolean;
     dir_exists: boolean;
+    config?: any;
+    max_players?: number;
 }
 
 // JVM Args Suggestions for the config form
@@ -207,9 +209,17 @@ export default function ServerDetail() {
     useEffect(() => {
         if (activeTab === 'config') {
             fetchJavaVersions();
-            // Fix: Only update form data if it's empty or ID mismatch to prevent overwriting user edits
+            // Initialize form data from server and its config
             if (server && configFormData.id !== server.id) {
-                setConfigFormData(server);
+                const formData = { ...server };
+                // Map config values to flat form fields if they exist
+                if (server.config) {
+                    if (server.config.MaxPlayers) formData.max_players = server.config.MaxPlayers;
+                    if (server.config.MaxViewRadius) formData.view_distance = server.config.MaxViewRadius;
+                    if (server.config.Seed) formData.seed = server.config.Seed;
+                    if (server.config.ServerName) formData.name = server.config.ServerName;
+                }
+                setConfigFormData(formData);
             }
         }
     }, [activeTab, server, configFormData.id]);
@@ -251,13 +261,28 @@ export default function ServerDetail() {
         setConfigError('');
 
         try {
+            // Prepare payload: merge flat fields back into config object where necessary
+            const payload = { ...configFormData };
+
+            // Ensure config object exists
+            if (!payload.config) payload.config = server?.config || {};
+
+            // Update specific config fields
+            if (payload.max_players) payload.config.MaxPlayers = parseInt(payload.max_players.toString());
+            if (payload.view_distance) payload.config.MaxViewRadius = parseInt(payload.view_distance.toString());
+            if (payload.seed) payload.config.Seed = payload.seed;
+            // config.ServerName is usually handled by the main 'name' field update in backend? 
+            // The backend updates 'name' column, but we should also sync it to config if Hytale needs it there.
+            if (payload.name) payload.config.ServerName = payload.name;
+
+
             const response = await fetch(`/api/v1/servers/${id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${localStorage.getItem('token')}`,
                 },
-                body: JSON.stringify(configFormData),
+                body: JSON.stringify(payload),
             });
 
             if (response.ok) {
@@ -319,7 +344,7 @@ export default function ServerDetail() {
         }
         fetchServer();
         setTimeout(fetchServer, 1000);
-        setTimeout(fetchServer, 3000);
+        setTimeout(fetchServer, 5501);
     };
 
     const sendCommand = (e: React.FormEvent) => {
@@ -1112,6 +1137,15 @@ export default function ServerDetail() {
                                     {/* World Configuration (JSON) */}
                                     <CollapsibleSection title="Configuration du Monde (JSON)" icon={Globe}>
                                         <div className="form-grid-2">
+                                            <div className="form-group">
+                                                <label>Joueurs Maximum</label>
+                                                <input
+                                                    type="number"
+                                                    value={configFormData.max_players || 100}
+                                                    onChange={(e) => updateConfigValue('max_players', parseInt(e.target.value))}
+                                                    className="input"
+                                                />
+                                            </div>
                                             <div className="form-group">
                                                 <label>Seed</label>
                                                 <input type="text" value={configFormData.seed || ''} onChange={(e) => updateConfigValue('seed', e.target.value)} className="input font-mono" />

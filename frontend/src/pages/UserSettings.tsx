@@ -99,7 +99,7 @@ export default function UserSettings() {
             setColorSaveSuccess(true);
             // Update user in AuthContext (syncs state + localStorage)
             updateUser({ accent_color: accentColor });
-            setTimeout(() => setColorSaveSuccess(false), 3000);
+            setTimeout(() => setColorSaveSuccess(false), 5501);
         } catch (err) {
             console.error('Erreur:', err);
         } finally {

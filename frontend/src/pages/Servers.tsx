@@ -16,6 +16,8 @@ interface Server {
     working_dir: string;
     auto_start: boolean;
     dir_exists: boolean;
+    players?: string[];
+    max_players?: number;
 }
 
 export default function Servers() {
@@ -189,7 +191,7 @@ export default function Servers() {
                                         --
                                     </td>
                                     <td className="text-cell">
-                                        0 / 0 Max
+                                        {server.players ? `${server.players.length}` : '0'} / {server.max_players || '?'} Max
                                     </td>
                                     <td className="text-right">
                                         <span className={`badge badge--${isMissing ? 'warning' : server.status === 'running' ? 'success' : 'danger'}`}>
