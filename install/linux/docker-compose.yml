@@ -19,23 +19,15 @@ services:
       - BACKUPS_DIR=/backups
       - RUST_LOG=info
     volumes:
-      - kweebec-data:/data
-      - kweebec-servers:/servers
-      - kweebec-backups:/backups
+      - /your_path/data:/data
+      - /your_path/servers:/servers
+      - /your_path/backups:/backups
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5500/api/v1/settings"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-
-volumes:
-  kweebec-data:
-    driver: local
-  kweebec-servers:
-    driver: local
-  kweebec-backups:
-    driver: local
 
 networks:
   default:

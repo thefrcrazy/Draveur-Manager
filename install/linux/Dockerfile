@@ -13,7 +13,7 @@ RUN bun run build
 # ==========================================
 # Stage 2: Build Backend
 # ==========================================
-FROM rust:1.78 AS backend-builder
+FROM rust:latest AS backend-builder
 
 WORKDIR /app/backend
 COPY backend/Cargo.toml backend/Cargo.lock* ./
