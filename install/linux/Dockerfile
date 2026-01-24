@@ -24,7 +24,7 @@ RUN cargo build --release
 # ==========================================
 # Stage 3: Runtime
 # ==========================================
-FROM debian:bookworm-slim
+FROM debian:testing-slim
 
 # Install runtime dependencies and Java 25
 RUN apt-get update && apt-get install -y \
