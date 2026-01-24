@@ -39,8 +39,8 @@ RUN apt-get update && apt-get install -y \
     && apt-get install -y temurin-25-jdk \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN useradd -r -m -d /home/kweebec -s /bin/bash kweebec
+# Create non-root user with explicit UID 1000 to match host user
+RUN useradd -u 1000 -m -d /home/kweebec -s /bin/bash kweebec
 
 WORKDIR /app
 
